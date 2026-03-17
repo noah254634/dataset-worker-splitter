@@ -1,0 +1,17 @@
+.dev.vars
+.env
+.env.local
+dev.vars
+
+# Cloudflare 
+.wrangler/
+dist/
+.dev.vars.bak
+
+# Dependencies
+node_modules/
+
+# Logs and OS
+*.log
+.DS_Store
+Thumbs.db
