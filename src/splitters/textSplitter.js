@@ -9,6 +9,7 @@ export async function processTextStream(env, requestBody, projectId) {
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
+    
 
     // Decode chunk and split by newlines
     const chunk = decoder.decode(value, { stream: true });
@@ -28,10 +29,18 @@ export async function processTextStream(env, requestBody, projectId) {
       const r2Key = `projects/${projectId}/${splitType}/${taskId}.json`;
 
       // 3. Upload individual task to R2
-      await uploadToR2(env, r2Key, line, splitType, "application/json");
+      await uploadToR2(env, r2Key, line, splitType, "text/plain");
       
       count++;
     }
+  }
+
+  if (partialLine.trim()) {
+    const splitType = await getDeterministicSplit(partialLine);
+    const taskId = crypto.randomUUID();
+    const r2Key = `projects/${projectId}/${splitType}/${taskId}.json`;
+    await uploadToR2(env, r2Key, partialLine, splitType, "text/plain");
+    count++;
   }
 
   return { success: true, count };

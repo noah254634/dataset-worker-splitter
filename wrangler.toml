@@ -4,9 +4,9 @@ compatibility_date = "2026-03-17"
 
 # This links  worker to R2 bucket
 [[r2_buckets]]
-binding = "MY_BUCKET" # This is how you call it in your code (env.MY_BUCKET)
+binding = "MY_BUCKET" #this is how i call it
 bucket_name = "veralabel-datasets"
 
 [vars]
-# Your Node.js backend URL for the webhooks
+# Node.js backend URL for the webhooks
 BACKEND_API = "https://api.veralabel.ai/v1/internal/register-task"

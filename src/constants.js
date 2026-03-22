@@ -19,7 +19,8 @@ export const SUPPORTED_MIME_TYPES = {
 export const HEADERS = {
   SIGNATURE: 'X-Vera-Signature',
   PROJECT_ID: 'X-Project-ID',
-  DATA_TYPE: 'X-Data-Type'
+  DATA_TYPE: 'X-Data-Type',
+  DATASET_ID: 'X-Dataset-ID'
 };
 
 export const DATA_TYPES = {
