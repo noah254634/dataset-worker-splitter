@@ -10,3 +10,5 @@ bucket_name = "veralabel-datasets"
 [vars]
 # Node.js backend URL for the webhooks
 BACKEND_API = "https://api.veralabel.ai/v1/internal/register-task"
+# Must match veralabel-backend HANDSHAKE_URL value
+HANDSHAKE_URL = "my_long_url_here"

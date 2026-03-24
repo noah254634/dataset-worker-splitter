@@ -57,6 +57,11 @@ export async function registerTaskWithBackend(env, taskDetails) {
       'Content-Type': 'application/json'
     };
 
+    const handshakeUrl = env?.HANDSHAKE_URL || env?.BACKEND_HANDSHAKE_URL || env?.BACKEND_HANDSHAKE;
+    if (handshakeUrl) {
+      headers['handshake-url'] = String(handshakeUrl);
+    }
+
     if (env.BACKEND_TOKEN) {
       headers.Authorization = `Bearer ${env.BACKEND_TOKEN}`;
     }
@@ -81,16 +86,17 @@ export async function registerTaskWithBackend(env, taskDetails) {
 
     if (!response.ok) {
       const bodyText = await response.text().catch(() => '');
-      console.log(`${response}`)
+      const taskCount = Array.isArray(taskDetails?.tasks) ? taskDetails.tasks.length : 0;
       console.warn(
-        `Backend registration failed for task ${taskDetails.taskId}: ${response.status} ${response.statusText}${bodyText ? ` | ${bodyText}` : ''}`
+        `Backend registration failed for batch (${taskCount} tasks): ${response.status} ${response.statusText}${bodyText ? ` | ${bodyText}` : ''}`
       );
       return { ok: false, status: response.status, statusText: response.statusText, body: bodyText };
     }
 
     return { ok: true };
   } catch (error) {
-    console.warn(`Failed to register task ${taskDetails.taskId}: ${error?.message || String(error)}`);
+    const taskCount = Array.isArray(taskDetails?.tasks) ? taskDetails.tasks.length : 0;
+    console.warn(`Failed to register batch (${taskCount} tasks): ${error?.message || String(error)}`);
     return { ok: false, reason: 'fetch_error', error: error?.message || String(error) };
   }
 }
