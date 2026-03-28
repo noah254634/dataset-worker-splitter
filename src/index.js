@@ -15,18 +15,12 @@ export default {
       return new Response("Request body required", { status: 400 });
     }
 
-    // SECURITY LAYER
-    // Tee the body: one for scanning, one for processing
     const [scanStream, processingStream] = request.body.tee();
 
-    // Parse URL first
     const url = new URL(request.url);
 
-    // Determine type (using your existing detection logic)
-    // For brevity, assume dataType is determined here...
     let dataType = url.searchParams.get('type') || request.headers.get(HEADERS.DATA_TYPE);
 
-    // Run the scan
     const security = await runSecurityScan(scanStream, dataType, env);
     
     if (!security.safe) {
@@ -37,9 +31,12 @@ export default {
     const projectId = url.searchParams.get('projectId') || request.headers.get(HEADERS.PROJECT_ID);
     const datasetId = url.searchParams.get('datasetId') || request.headers.get(HEADERS.DATASET_ID);
 
+    if (!projectId || !datasetId) {
+      return new Response("projectId and datasetId are required", { status: 400 });
+    }
+
     try {
       let result;
-      // IMPORTANT: Use processingStream here instead of request.body
       switch (dataType) {
         case DATA_TYPES.TEXT:
           result = await processTextStream(env, processingStream, projectId, datasetId);
@@ -54,10 +51,19 @@ export default {
           return new Response("Unsupported Type", { status: 400 });
       }
 
-      return new Response(JSON.stringify(result), { status: 200 });
+      return new Response(JSON.stringify(result), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
 
     } catch (error) {
-      return new Response(`Worker Error: ${error.message}`, { status: 500 });
+      console.error("Worker processing error", {
+        projectId,
+        datasetId,
+        dataType,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return new Response("Worker Error", { status: 500 });
     }
   }
 };

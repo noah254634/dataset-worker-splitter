@@ -6,41 +6,51 @@ export async function processTextStream(env, requestBody, projectId) {
   let partialLine = "";
   let count = 0;
 
+  const uploadLine = async (line) => {
+    if (!line.trim()) return;
+
+    let finalContent = line;
+    let contentType = "text/plain";
+
+    const isJson = line.trim().startsWith('{');
+    if (isJson) {
+      try {
+        JSON.parse(line);
+        contentType = "application/json";
+      } catch (e) {
+        contentType = "text/plain";
+      }
+    }
+
+    const splitType = await getDeterministicSplit(line);
+    const taskId = crypto.randomUUID();
+    const extension = contentType === "application/json" ? "json" : "txt";
+    const r2Key = `projects/${projectId}/${splitType}/${taskId}.${extension}`;
+
+    await uploadToR2(env, r2Key, finalContent, splitType, contentType);
+    count++;
+  };
+
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-    
 
-    // Decode chunk and split by newlines
     const chunk = decoder.decode(value, { stream: true });
     const lines = (partialLine + chunk).split("\n");
-    
-    // The last element is either empty or a partial line; save it for the next chunk
     partialLine = lines.pop();
 
     for (const line of lines) {
-      if (!line.trim()) continue;
-
-      // 1. Determine split based on the content (Deterministic)
-      const splitType = await getDeterministicSplit(line);
-      
-      // 2. Generate a unique key for this specific task
-      const taskId = crypto.randomUUID();
-      const r2Key = `projects/${projectId}/${splitType}/${taskId}.json`;
-
-      // 3. Upload individual task to R2
-      await uploadToR2(env, r2Key, line, splitType, "text/plain");
-      
-      count++;
+      await uploadLine(line);
     }
   }
 
+  const remainingChunk = decoder.decode();
+  if (remainingChunk) {
+    partialLine += remainingChunk;
+  }
+
   if (partialLine.trim()) {
-    const splitType = await getDeterministicSplit(partialLine);
-    const taskId = crypto.randomUUID();
-    const r2Key = `projects/${projectId}/${splitType}/${taskId}.json`;
-    await uploadToR2(env, r2Key, partialLine, splitType, "text/plain");
-    count++;
+    await uploadLine(partialLine);
   }
 
   return { success: true, count };

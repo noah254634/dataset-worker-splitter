@@ -4,7 +4,6 @@ export function bufferToHex(buffer) {
     .join('');
 }
 
-// 2. Base64
 export function toBase64(str) {
   return btoa(unescape(encodeURIComponent(str)));
 }
@@ -13,7 +12,6 @@ export function getExtension(filename) {
   return filename.substring(filename.lastIndexOf('.') + 1).toLowerCase();
 }
 
-//  UUID Generator 
 export function generateUUID() {
   return crypto.randomUUID();
 }

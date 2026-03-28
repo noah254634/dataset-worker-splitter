@@ -17,20 +17,18 @@ export async function* universalStreamParser(stream, options = {}) {
       const trimmed = buffer.trimStart();
       if (trimmed.startsWith('[')) {
         isArray = true;
-        buffer = trimmed.slice(1); // Strip the opening bracket
+        buffer = trimmed.slice(1);
       } else {
         buffer = trimmed;
       }
       firstChunk = false;
     }
 
-    // Process Buffer
     let boundary;
     while ((boundary = findNextBoundary(buffer, isArray)) !== -1) {
       let segment = buffer.slice(0, boundary + 1).trim();
       buffer = buffer.slice(boundary + 1);
 
-      // Clean up JSON Array commas
       if (segment.startsWith(',')) segment = segment.slice(1).trim();
       if (isArray && segment.startsWith(',')) segment = segment.slice(1).trim();
       if (isArray && segment.endsWith(']')) segment = segment.slice(0, -1).trim();
@@ -45,7 +43,6 @@ export async function* universalStreamParser(stream, options = {}) {
         try {
           yield JSON.parse(segment);
         } catch (e) {
-          // If it's a partial or malformed line, we ignore or log
           if (onMalformed) onMalformed(segment, e);
           console.error("Parser skip: Malformed segment");
         }
@@ -53,7 +50,6 @@ export async function* universalStreamParser(stream, options = {}) {
     }
   }
 
-  // Handle trailing segment after stream ends
   let finalSegment = buffer.trim();
   if (isArray) {
     if (finalSegment.startsWith(',')) finalSegment = finalSegment.slice(1).trim();
@@ -78,7 +74,6 @@ export async function* universalStreamParser(stream, options = {}) {
 }
 
 function findNextBoundary(str, isArray) {
-  // Find a complete top-level JSON object boundary, handling strings/escapes.
   let depth = 0;
   let inString = false;
   let isEscaped = false;
