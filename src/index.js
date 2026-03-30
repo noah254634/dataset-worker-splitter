@@ -6,6 +6,17 @@ import { runSecurityScan } from './middleware/security.js';
 
 export default {
   async fetch(request, env) {
+    if (!env.INTERNAL_SECRET) {
+      console.error("Missing INTERNAL_SECRET in worker environment");
+      return new Response("Worker misconfigured", { status: 500 });
+    }
+
+    const skipRegistration = String(env?.SKIP_BACKEND_REGISTRATION || "").toLowerCase() === "true";
+    if (!skipRegistration && !env.BACKEND_API) {
+      console.error("Missing BACKEND_API in worker environment");
+      return new Response("Worker misconfigured", { status: 500 });
+    }
+
     const signature = request.headers.get(HEADERS.SIGNATURE);
     if (!signature || signature !== env.INTERNAL_SECRET) {
       return new Response("Unauthorized", { status: 401 });
@@ -19,7 +30,9 @@ export default {
 
     const url = new URL(request.url);
 
-    let dataType = url.searchParams.get('type') || request.headers.get(HEADERS.DATA_TYPE);
+    const dataType = String(
+      url.searchParams.get('type') || request.headers.get(HEADERS.DATA_TYPE) || ""
+    ).trim().toLowerCase();
 
     const security = await runSecurityScan(scanStream, dataType, env);
     
@@ -49,6 +62,18 @@ export default {
           break;
         default:
           return new Response("Unsupported Type", { status: 400 });
+      }
+
+      const failedBatches = Number(result?.failedBatches || 0);
+      if (failedBatches > 0) {
+        return new Response(JSON.stringify({
+          ...result,
+          success: false,
+          message: "One or more task batches failed backend registration",
+        }), {
+          status: 502,
+          headers: { "Content-Type": "application/json" },
+        });
       }
 
       return new Response(JSON.stringify(result), {

@@ -1,5 +1,7 @@
 import { SPLIT_RATIOS } from './constants.js';
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export async function getDeterministicSplit(inputString) {
   const msgUint8 = new TextEncoder().encode(inputString);
   
@@ -14,7 +16,7 @@ export async function getDeterministicSplit(inputString) {
   const validationCutoff = SPLIT_RATIOS.TRAIN + SPLIT_RATIOS.VALIDATION;
 
   if (score < trainCutoff) return "train";
-  if (score < validationCutoff) return "val";
+  if (score < validationCutoff) return "validation";
   return "test";
 }
 
@@ -39,7 +41,23 @@ export async function registerTaskWithBackend(env, taskDetails) {
     return { ok: false, reason: 'missing_backend_api' };
   }
 
-  try {
+  const configuredAttempts = Number(env.BACKEND_RETRY_ATTEMPTS);
+  const maxAttempts = Number.isFinite(configuredAttempts)
+    ? Math.min(Math.max(Math.trunc(configuredAttempts), 1), 5)
+    : 3;
+
+  const configuredTimeoutMs = Number(env.BACKEND_TIMEOUT_MS);
+  const timeoutMs = Number.isFinite(configuredTimeoutMs) && configuredTimeoutMs > 0
+    ? configuredTimeoutMs
+    : 8000;
+
+  const rawBackendApi = String(env.BACKEND_API).replace(/\/+$/, '');
+  const endpoint = /(\/tasks\/register|\/register-task)$/i.test(rawBackendApi)
+    ? rawBackendApi
+    : `${rawBackendApi}`;
+
+  const taskCount = Array.isArray(taskDetails?.tasks) ? taskDetails.tasks.length : 0;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const headers = {
       'Content-Type': 'application/json'
     };
@@ -52,40 +70,59 @@ export async function registerTaskWithBackend(env, taskDetails) {
     if (env.BACKEND_TOKEN) {
       headers.Authorization = `Bearer ${env.BACKEND_TOKEN}`;
     }
-
-    const rawBackendApi = String(env.BACKEND_API).replace(/\/+$/, '');
-
-    const endpoint = /(\/tasks\/register|\/register-task)$/i.test(rawBackendApi)
-      ? rawBackendApi
-      : `${rawBackendApi}`;
-
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(taskDetails),
-      signal: controller.signal
-    });
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(taskDetails),
+        signal: controller.signal
+      });
 
-    clearTimeout(timeoutId);
+      if (response.ok) {
+        return { ok: true };
+      }
 
-    if (!response.ok) {
       const bodyText = await response.text().catch(() => '');
-      const taskCount = Array.isArray(taskDetails?.tasks) ? taskDetails.tasks.length : 0;
+      const retryableStatus = [408, 425, 429, 500, 502, 503, 504].includes(response.status);
+
       console.warn(
-        `Backend registration failed for batch (${taskCount} tasks): ${response.status} ${response.statusText}${bodyText ? ` | ${bodyText}` : ''}`
+        `Backend registration failed for batch (${taskCount} tasks), attempt ${attempt}/${maxAttempts}: ${response.status} ${response.statusText}${bodyText ? ` | ${bodyText}` : ''}`
       );
-      return { ok: false, status: response.status, statusText: response.statusText, body: bodyText };
+
+      if (!retryableStatus || attempt === maxAttempts) {
+        return {
+          ok: false,
+          status: response.status,
+          statusText: response.statusText,
+          body: bodyText,
+          attempts: attempt,
+        };
+      }
+    } catch (error) {
+      const message = error?.message || String(error);
+      console.warn(
+        `Failed to register batch (${taskCount} tasks), attempt ${attempt}/${maxAttempts}: ${message}`
+      );
+
+      if (attempt === maxAttempts) {
+        return { ok: false, reason: 'fetch_error', error: message, attempts: attempt };
+      }
+    } finally {
+      clearTimeout(timeoutId);
     }
 
-    return { ok: true };
-  } catch (error) {
-    const taskCount = Array.isArray(taskDetails?.tasks) ? taskDetails.tasks.length : 0;
-    console.warn(`Failed to register batch (${taskCount} tasks): ${error?.message || String(error)}`);
-    return { ok: false, reason: 'fetch_error', error: error?.message || String(error) };
+    const backoffMs = 300 * (2 ** (attempt - 1));
+    await sleep(backoffMs);
   }
+
+  return {
+    ok: false,
+    reason: 'unknown_registration_failure',
+    attempts: maxAttempts,
+  };
 }
 
 

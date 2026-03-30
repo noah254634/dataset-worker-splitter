@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "build": "wrangler build",
-    
+    "check:data": "node scripts/check-data.mjs",
     "deploy": "wrangler deploy",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -23,10 +23,10 @@
   },
   "homepage": "https://github.com/noah254634/dataset-worker-splitter#readme",
   "dependencies": {
-    "fflate": "^0.8.2",
-    "sqlite3": "^6.0.1"
+    "fflate": "^0.8.2"
   },
   "devDependencies": {
+    "sqlite3": "^6.0.1",
     "wrangler": "^4.76.0"
   }
 }

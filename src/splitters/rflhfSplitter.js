@@ -67,6 +67,7 @@ export async function processRLHFStream(env, requestBody, projectId, datasetId) 
 
       taskBuffer.push({
         taskId,
+        taskType: "rfhlearning",
         r2_url: r2Key,
         split: splitType,
         contentPreview: prompt.substring(0, 100),

@@ -55,6 +55,7 @@ export async function processMediaZip(env, requestBody, projectId, datasetId) {
 
       taskBuffer.push({
         taskId: crypto.randomUUID(),
+        taskType: inferTaskType(contentType),
         r2_url: r2Key,
         split: splitType,
         fileName: filename,
@@ -95,4 +96,11 @@ function getMimeType(ext) {
     pdf: "application/pdf"
   };
   return map[ext] || "application/octet-stream";
+}
+
+function inferTaskType(contentType) {
+  if (contentType.startsWith("image/")) return "image";
+  if (contentType.startsWith("audio/")) return "audio";
+  if (contentType.startsWith("video/")) return "video";
+  return "text";
 }
